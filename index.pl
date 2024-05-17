@@ -11,6 +11,28 @@ server(Port) :-
 % Declare a handler for the root directory
 :- http_handler(root(.), form_with_joke_page, []).
 
+% Function to fetch exchange rate data safely with logging
+get_exchange_rates(Rates) :-
+    URL = 'https://api.frankfurter.app/2020-01-01..2020-01-31?from=EUR&to=USD',
+    catch(http_get(URL, JSONAtom, []), Error, (print_message(error, Error), fail)),
+    catch(atom_json_dict(JSONAtom, Dict, []), Error, (print_message(error, Error), fail)),
+    (   is_dict(Dict.rates)
+    ->  Rates = Dict.rates,
+        format(user_error, 'Rates fetched: ~w~n', [Rates])  % Logging fetched rates
+    ;   print_message(error, 'No rates data found'), fail).
+
+% Convert rates dictionary to lists of dates and values with refined method
+convert_rates_to_lists(RatesDict, Dates, Values) :-
+    is_dict(RatesDict),  % Check if the RatesDict is a dictionary
+    dict_pairs(RatesDict, _, Pairs),  % Get the key-value pairs from the dictionary
+    pairs_keys_values(Pairs, Dates, ValueDicts),  % Separate the keys and values into separate lists
+    maplist(extract_usd_value, ValueDicts, Values).  % Extract USD values from each dictionary
+
+% Helper predicate to extract USD value from nested dictionary
+extract_usd_value(Dict, Value) :-
+    is_dict(Dict),  % Ensure it is a dictionary
+    Value = Dict.USD.  % Extract the USD value
+
 % Function to fetch a random joke from the API
 get_random_joke(Joke) :-
     URL = 'https://official-joke-api.appspot.com/random_joke',
@@ -24,23 +46,17 @@ get_random_joke(Joke) :-
 % Page that displays the static form along with the joke and a chart
 form_with_joke_page(Request) :-
     get_random_joke(Joke),
+    get_exchange_rates(Rates),
+    convert_rates_to_lists(Rates, Dates, Values),
     reply_html_page(
         title('Project Proposal Form with Joke and Chart'),
-        [ \html_requires_chartjs,  % Include Chart.js
+        [ \html_requires_chartjs,
           \html_requires_style,
           h1('Project Proposal Form'),
           p('Here is a random joke for you:'),
           p(Joke),
-          h2('Form Details'),
-          p('Kelompok: 8'),
-          p('Nama anggota:'),
-          p('1. Marhaensalenindo K'),
-          p('2. M Fadhil Mauladhani'),
-          p('3. Agung Prasetyo'),
-          p('Usulan proyek tugas: Info Kurs Mata Uang'),
-          p('Alasan: simple, tidak perlu setup DB dan informatif. Pemanfaatan API publik.'),
-          \chart_canvas,  % Canvas for the chart
-          \initialize_chart  % Initialize the chart with JavaScript
+          \chart_canvas,
+          \initialize_chart(Dates, Values)
         ]).
 
 
@@ -60,45 +76,36 @@ html_requires_style -->
 chart_canvas -->
     html(canvas([id('myChart'), width('400'), height('400')], [])).
 
-% Initialize the chart with JavaScript
-initialize_chart -->
-    html(script([], '
-        var ctx = document.getElementById("myChart").getContext("2d");
-        var myChart = new Chart(ctx, {
-            type: "bar",
-            data: {
-                labels: ["Red", "Blue", "Yellow", "Green", "Purple", "Orange"],
-                datasets: [{
-                    label: "# of Votes",
-                    data: [12, 19, 3, 5, 2, 3],
-                    backgroundColor: [
-                        "rgba(255, 99, 132, 0.2)",
-                        "rgba(54, 162, 235, 0.2)",
-                        "rgba(255, 206, 86, 0.2)",
-                        "rgba(75, 192, 192, 0.2)",
-                        "rgba(153, 102, 255, 0.2)",
-                        "rgba(255, 159, 64, 0.2)"
-                    ],
-                    borderColor: [
-                        "rgba(255, 99, 132, 1)",
-                        "rgba(54, 162, 235, 1)",
-                        "rgba(255, 206, 86, 1)",
-                        "rgba(75, 192, 192, 1)",
-                        "rgba(153, 102, 255, 1)",
-                        "rgba(255, 159, 64, 1)"
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true
+initialize_chart(Dates, Values) -->
+    {
+        atom_json_term(DatesJSON, Dates, []),
+        atom_json_term(ValuesJSON, Values, []),
+        format(string(ChartJS), '
+            var ctx = document.getElementById("myChart").getContext("2d");
+            var myChart = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: ~w,
+                    datasets: [{
+                        label: "EUR to USD Exchange Rate",
+                        data: ~w,
+                        backgroundColor: "rgba(54, 162, 235, 0.2)",
+                        borderColor: "rgba(54, 162, 235, 1)",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
                     }
                 }
-            }
-        });
-    ')).
+            });
+        ', [DatesJSON, ValuesJSON])
+    },
+    html(script([], ChartJS)).
+
 
 % The server initialization remains the same
 :- initialization(server(8080)).
