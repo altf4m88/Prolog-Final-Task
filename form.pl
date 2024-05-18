@@ -1,6 +1,7 @@
 :- use_module(library(http/thread_httpd)).
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/http_client)).
+:- use_module(library(http/http_parameters)).
 :- use_module(library(http/json)).
 :- use_module(library(http/html_write)).
 
@@ -11,11 +12,11 @@ server(Port) :-
 % Declare a handler for the root directory
 :- http_handler(root(.), form, []).
 
-:- http_handler(root(submit_profil), submit_profil_handler, [method(post)]).
+:- http_handler(root(chart), chart, [method(post)]).
 
 % Function to fetch exchange rate data safely with logging
-get_exchange_rates(Rates) :-
-    URL = 'https://api.frankfurter.app/2020-01-01..2020-01-31?from=EUR&to=USD',
+get_exchange_rates(From, To, Amount, Rates) :-
+    format(string(URL), 'https://api.frankfurter.app/2020-01-01..2020-01-31?amount=~w&from=~w&to=~w', [Amount, From, To]),
     catch(http_get(URL, JSONAtom, []), Error, (print_message(error, Error), fail)),
     catch(atom_json_dict(JSONAtom, Dict, []), Error, (print_message(error, Error), fail)),
     (   is_dict(Dict.rates)
@@ -37,15 +38,12 @@ extract_usd_value(Dict, Value) :-
 
 % Page that displays the static form along with the joke and a chart
 form(_Request) :-
-    get_exchange_rates(Rates),
-    convert_rates_to_lists(Rates, Dates, Values),
     get_currencies(Currencies),
     make_currency_options(Currencies, Options1),
     make_currency_options(Currencies, Options2),
     reply_html_page(
-        title('Project Proposal Form with Joke and Chart'),
-        [ \html_requires_chartjs,
-          \html_requires_style,
+        title('Form'),
+        [ \html_requires_style,
           head([
               title('Home Page'),
               meta([name(viewport), content('width=device-width, initial-scale=1')]), 
@@ -56,23 +54,50 @@ form(_Request) :-
              div(class='col-md-6 offset-md-3',
                  div(class='card',
                      div(class='card-body',
-                         [ div(class='form-group',
-                                [ label([for='currency1'], 'From:'),
-                                  select([class='form-control', id='currency1'], Options1)
+                         [ 
+                            form([action='/chart', method='POST', class('form')],
+                            [ div(class='form-group',
+                                    [ label([for='currency1'], 'From:'),
+                                    select([class='form-control', id='currency1', name='from'], Options1)
+                                    ]),
+                            div(class='form-group',
+                                [ label([for='amount'], 'Amount:'),
+                                    input([type=number, class='form-control', id='amount', name='amount', value=1, min=0, step=0.01])
                                 ]),
-                           div(class='form-group',
-                               [ label([for='amount'], 'Amount:'),
-                                 input([type=number, class='form-control', id='amount', value=1, min=0, step=0.01])
-                               ]),
-                           div(class='form-group',
-                               [ label([for='currency2'], 'To:'),
-                                 select([class='form-control', id='currency2'], Options2)
-                               ]),
-                           button([class='btn btn-primary btn-block', onclick='convertCurrency()'], 'Convert')
+                            div(class='form-group',
+                                [ label([for='currency2'], 'To:'),
+                                    select([class='form-control', id='currency2', name='to'], Options2)
+                                ]),
+                            input([class='btn btn-primary btn-block', type='submit', value='Convert'])
+                            ])
                          ])
                     )
                 )
-            ),
+            )
+        ]).
+
+chart(Request) :-
+    http_parameters(Request,
+                    [ from(From, []),
+                      to(To, []),
+                      amount(Amount, [number])
+                    ]),
+    get_exchange_rates(From, To, Amount, Rates),
+    convert_rates_to_lists(Rates, Dates, Values),
+    reply_html_page(
+        title('Chart'),
+        [ \html_requires_chartjs,
+          \html_requires_style,
+          head([
+              title('Chart Page'),
+              meta([name(viewport), content('width=device-width, initial-scale=1')]), 
+              link([rel('stylesheet'), href('https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css')])
+          ]),
+          h1([class='text-center'], 'Chart'),
+          p(['Currency Conversion: ', Amount, ' ', From, ' to ', To]),
+          div([style('width:500px; height:500px;')], [
+              \chart_canvas
+          ]),
           \chart_canvas,
           \initialize_chart(Dates, Values)
         ]).
@@ -114,7 +139,7 @@ initialize_chart(Dates, Values) -->
                 data: {
                     labels: ~w,
                     datasets: [{
-                        label: "EUR to USD Exchange Rate",
+                        label: "Exchange Rate",
                         data: ~w,
                         backgroundColor: "rgba(54, 162, 235, 0.2)",
                         borderColor: "rgba(54, 162, 235, 1)",
