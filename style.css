@@ -2,27 +2,7 @@ body {
     font-family: Arial, sans-serif;
 }
 
-.container {
-    width: 80%;
-    margin: 0 auto;
-    h1 {
-        text-align: center;
-    }
-}
-
-.main-info {
-    display: flex;
-    justify-content: space-between;
-    margin: 20px;
-
-    .chart-container {
-        width: 75%;
-        margin: 20px;
-    }
-}
-
 .info-card {
-    width: 25%;
     margin: 20px;
     border: 1px solid #ddd;
     padding: 20px;
@@ -34,14 +14,5 @@ body {
 
     .info-card-content p {
         margin: 10px 0;
-    }
-}
-
-.rate-currency {
-    display: flex;
-    justify-content: space-between;
-    margin: 20px;
-    .info-rate-currency {
-        width: 50%;
     }
 }
