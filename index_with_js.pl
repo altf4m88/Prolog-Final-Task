@@ -2,11 +2,42 @@
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/html_write)).
 :- use_module(library(http/js_write)).
+:- use_module(library(http/http_parameters)).
+:- use_module(library(odbc)).
+:- use_module(library(http/json)).
+:- use_module(library(http/http_json)).
+
+% Mengatur koneksi ke database MySQL
+connect_to_db :-
+    odbc_connect('myodbc3', _,
+                 [user(root), password(''), alias(db_currency), open(once)]).
+
+% Menutup koneksi ke database
+disconnect_from_db :-
+    odbc_disconnect(db_currency).
+
+add_favorite(From, To, Amount) :-
+    format(atom(Query), 'INSERT INTO tbl_favorites (from_currency, to_currency, amount) VALUES (\'~w\', \'~w\', \'~w\')', [From, To, Amount]),
+    odbc_query(db_currency, Query).
 
 server(Port) :-
     http_server(http_dispatch, [port(Port)]).
 
 :- http_handler(root(.), dashboard_page, []).
+
+:- http_handler(root(add_favorite), handle_add_favorite, []).
+
+handle_add_favorite(Request) :-
+    http_parameters(Request,
+                    [ from(From, []),
+                      to(To, []),
+                      amount(Amount, [])
+                    ]),
+    connect_to_db,
+    add_favorite(From, To, Amount),
+    disconnect_from_db,
+    format('Content-type: text/plain~n~n'),
+    format('Favorite added successfully').
 
 dashboard_page(_Request) :-
     reply_html_page(
@@ -68,7 +99,7 @@ amount_inputs -->
     html(div(class('mb-3'), [
         label([for(amount)], 'Amount:'),
         input([type(number), class('form-control'), id(amount), value('1')]),
-        input([type(number), class('form-control mt-4'), id('amount-result'), disabled])
+        input([type(text), class('form-control mt-4'), id('amount-result'), disabled])
     ])).
 
 info_section -->
@@ -81,6 +112,7 @@ info_section -->
                 ])
             ]),
             div(class('col-12 col-md-3 col-md-3'), [
+                button([type(button), id(addToFavorite), class('btn btn-primary')], 'Add to Favorite'),
                 div(class('info-card'), [
                     div(class('info-card-content'), [
                         p([
@@ -109,6 +141,7 @@ rate_currency_section -->
         div(class('rate-currency text-center mx-auto'), [
             div(class('info-rate-currency'), [
                 h2('Info Rate Currency By USD'),
+                select([id('additionalCurrencySelect'), class('form-select mb-3')], []),
                 canvas(id('lineRateCurrency'), [])
             ])
         ])
@@ -134,7 +167,37 @@ inline_scripts -->
                 getChart(fromCurrency, toCurrency, amount);
             });
 
+            $("#additionalCurrencySelect").change(function() {
+                getRateCurrency("USD");
+            });
+
+            $("#addToFavorite").click(async function () {
+                let fromCurrency = $("#fromCurrency").val();
+                let toCurrency = $("#toCurrency").val();
+                let amount = $("#amount").val();
+
+                // Make HTTP request to Prolog server to call the add_favorite predicate
+                try {
+                    const response = await fetch(`/add_favorite?from=${fromCurrency}&to=${toCurrency}&amount=${amount}`);
+
+                    if (response.ok) {
+                        alert("Favorite added successfully.");
+                    } else {
+                        alert("Failed to add to favorites.");
+                    }
+                } catch (error) {
+                    console.error("Error making request:", error);
+                    alert("Failed to add to favorites.");
+                }
+            });
+
             getChart("USD", "IDR");
+            getCurrency();
+            getRateCurrency("USD");
+
+            function formatNumber(num) {
+                return num.toLocaleString();
+            }
 
             async function getChart(from = "USD", to = "IDR", amount = 1) {
                 $(".currency-from").html(from);
@@ -142,13 +205,15 @@ inline_scripts -->
 
                 const data = await fetchCurrencyData(from, to, amount);
 
-                let currentPrice = data.rates[data.end_date][to];
+                if (data && data.rates && data.rates[data.end_date]) {
+                    let currentPrice = Math.round(data.rates[data.end_date][to]); // Round the current price
 
-                $(".current-price").html(currentPrice);
-                $("#amount-result").val(currentPrice);
-                $(".latest-date-currency").html(data.end_date);
+                    $(".current-price").html(formatNumber(currentPrice));
+                    $("#amount-result").val(formatNumber(currentPrice));
+                    $(".latest-date-currency").html(data.end_date);
 
-                createCurrencyChart(data, to);
+                    createCurrencyChart(data, to);
+                }
             }
 
             async function fetchCurrencyData(fromCurrency, toCurrency, amount = 1) {
@@ -169,7 +234,7 @@ inline_scripts -->
                 if (!data) return;
 
                 let chartLabels = Object.keys(data.rates);
-                let chartData = Object.values(data.rates).map((rate) => rate[toCurrency]);
+                let chartData = Object.values(data.rates).map((rate) => Math.round(rate[toCurrency])); // Round the chart data
 
                 let ctx = document.getElementById("myLineChart").getContext("2d");
 
@@ -213,7 +278,7 @@ inline_scripts -->
                                 intersect: false,
                                 callbacks: {
                                     label: function (tooltipItem) {
-                                        return `${tooltipItem.dataset.label}: ${tooltipItem.formattedValue} ${toCurrency}`;
+                                        return `${tooltipItem.dataset.label}: ${formatNumber(tooltipItem.formattedValue)} ${toCurrency}`;
                                     },
                                 },
                             },
@@ -221,6 +286,8 @@ inline_scripts -->
                     },
                 });
             }
+
+            let rateCurrencyChart; // Declare this outside the function to maintain its scope across multiple calls
 
             async function fetchCurrencyRate(baseCurrency) {
                 const apiUrl = `https://open.er-api.com/v6/latest/${baseCurrency}`;
@@ -238,17 +305,28 @@ inline_scripts -->
                 if (!data || !data.rates) return; // Ensure there is valid data
 
                 let rateData = {
-                    AUD: data.rates.AUD,
-                    EUR: data.rates.EUR,
-                    SGD: data.rates.SGD,
-                    BMD: data.rates.BMD,
-                    ANG: data.rates.ANG,
+                    AUD: Math.round(data.rates.AUD),
+                    EUR: Math.round(data.rates.EUR),
+                    SGD: Math.round(data.rates.SGD),
+                    BMD: Math.round(data.rates.BMD),
+                    ANG: Math.round(data.rates.ANG),
                 };
+
+                let additionalCurrency = $("#additionalCurrencySelect").val();
+                if (additionalCurrency && data.rates[additionalCurrency]) {
+                    rateData[additionalCurrency] = Math.round(data.rates[additionalCurrency]); // Round the additional currency rate
+                }
+
                 let currencyLabels = Object.keys(rateData);
                 let currencyRates = Object.values(rateData);
 
                 let ctx = document.getElementById("lineRateCurrency").getContext("2d");
-                let rateCurrencyChart = new Chart(ctx, {
+
+                if (rateCurrencyChart) {
+                    rateCurrencyChart.destroy();
+                }
+
+                rateCurrencyChart = new Chart(ctx, {
                     type: "doughnut",
                     data: {
                         labels: currencyLabels,
@@ -262,6 +340,7 @@ inline_scripts -->
                                     "rgb(255, 205, 86)",
                                     "rgb(75, 192, 192)",
                                     "rgb(153, 102, 255)",
+                                    "rgb(255, 159, 64)", // Add more colors if needed
                                 ],
                                 borderWidth: 2,
                                 fill: false,
@@ -274,23 +353,20 @@ inline_scripts -->
                 });
             }
 
-            getRateCurrency();
-
             async function getRateCurrency(currency = "USD") {
                 const data = await fetchCurrencyRate(currency);
                 createRateCurrencyChart(data);
             }
 
-            getCurrency();
-
             async function getCurrency() {
-                const data = await fetchCurrencies("USD", "IDR");
+                const data = await fetchCurrencies();
                 applyToForm(data);
+                applyToSelect(data);
             }
 
             function applyToForm(data) {
                 if (!data) return;
-                console.log(data);
+
                 let htmlOption = "";
 
                 $.each(data, function (index, currency) {
@@ -302,6 +378,18 @@ inline_scripts -->
 
                 $("#fromCurrency").val("USD");
                 $("#toCurrency").val("IDR");
+            }
+
+            function applyToSelect(data) {
+                if (!data) return;
+
+                let htmlOption = '<option value="">Select additional currency</option>';
+
+                $.each(data, function (index, currency) {
+                    htmlOption += `<option value="${index}">${currency}</option>`;
+                });
+
+                $("#additionalCurrencySelect").html(htmlOption);
             }
 
             async function fetchCurrencies() {
@@ -318,3 +406,6 @@ inline_scripts -->
 
         });
     |}).
+
+% The server initialization remains the same
+:- initialization(server(8080)).
