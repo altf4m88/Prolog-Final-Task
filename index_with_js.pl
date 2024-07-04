@@ -243,6 +243,7 @@ inline_scripts -->
                     SGD: data.rates.SGD,
                     BMD: data.rates.BMD,
                     ANG: data.rates.ANG,
+                    AED: data.rates.AED,
                 };
                 let currencyLabels = Object.keys(rateData);
                 let currencyRates = Object.values(rateData);
@@ -262,6 +263,7 @@ inline_scripts -->
                                     "rgb(255, 205, 86)",
                                     "rgb(75, 192, 192)",
                                     "rgb(153, 102, 255)",
+                                    "rgb(0, 0, 0)",
                                 ],
                                 borderWidth: 2,
                                 fill: false,
