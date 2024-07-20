@@ -109,14 +109,21 @@ let myLineChart; // Declare this outside the function to maintain its scope acro
 function createCurrencyChart(data, toCurrency) {
   if (!data) return;
 
-  let chartLabels = Object.keys(data.rates);
-  let chartData = Object.values(data.rates).map((rate) => rate[toCurrency]);
+  let rates = extractMonthlyData(data.rates);
+
+  let chartLabels = Object.keys(rates);
+  let chartData = Object.values(rates).map((rate) => rate[toCurrency]);
 
   let ctx = document.getElementById("myLineChart").getContext("2d");
 
   if (myLineChart) {
     myLineChart.destroy();
   }
+
+  // Create gradient
+  let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, "rgba(75, 192, 192, 0.6)");
+  gradient.addColorStop(1, "rgba(75, 192, 192, 0.1)");
 
   myLineChart = new Chart(ctx, {
     type: "line",
@@ -127,10 +134,11 @@ function createCurrencyChart(data, toCurrency) {
           label: `${toCurrency}`,
           data: chartData,
           borderColor: "rgb(75, 192, 192)",
-          backgroundColor: "rgba(75, 192, 192, 0.1)",
-          borderWidth: 1,
+          backgroundColor: gradient,
+          borderWidth: 2,
           fill: true,
-          pointStyle: false,
+          pointRadius: 0,
+          tension: 0.4, // Smooth the line
         },
       ],
     },
@@ -139,6 +147,34 @@ function createCurrencyChart(data, toCurrency) {
       scales: {
         y: {
           beginAtZero: false,
+          grid: {
+            color: "rgba(200, 200, 200, 0.2)",
+          },
+          title: {
+            display: true,
+            text: "Rate",
+            color: "black",
+            font: {
+              family: "Helvetica",
+              size: 14,
+              weight: "bold",
+            },
+          },
+        },
+        x: {
+          grid: {
+            color: "rgba(200, 200, 200, 0.2)",
+          },
+          title: {
+            display: true,
+            text: "Date",
+            color: "black",
+            font: {
+              family: "Helvetica",
+              size: 14,
+              weight: "bold",
+            },
+          },
         },
       },
       plugins: {
@@ -146,6 +182,12 @@ function createCurrencyChart(data, toCurrency) {
           display: true,
           labels: {
             color: "black",
+            font: {
+              family: "Helvetica",
+              size: 12,
+              style: "italic",
+              weight: "bold",
+            },
           },
         },
         tooltip: {
@@ -159,8 +201,29 @@ function createCurrencyChart(data, toCurrency) {
           },
         },
       },
+      animation: {
+        duration: 2000, // Smooth transition duration
+        easing: "easeOutBounce", // Easing function
+      },
     },
   });
+}
+
+function extractMonthlyData(rates) {
+  const monthlyData = {};
+
+  for (const date in rates) {
+    if (rates.hasOwnProperty(date)) {
+      const [year, month] = date.split("-");
+      const key = `${year}-${month}`;
+
+      if (!monthlyData[key]) {
+        monthlyData[key] = rates[date];
+      }
+    }
+  }
+
+  return monthlyData;
 }
 
 async function fetchCurrencyRate(baseCurrency) {
@@ -231,7 +294,7 @@ async function getCurrency() {
 
 function applyToForm(data) {
   if (!data) return;
-  console.log(data);
+
   let htmlOption = "";
 
   $.each(data, function (index, currency) {
