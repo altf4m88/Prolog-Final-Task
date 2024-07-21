@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Favorite } = require("../models");
+const { Favorite, LogRequest } = require("../models");
 
 // Mendapatkan semua data favorit
 router.get("/get_favorites", async (req, res) => {
@@ -43,5 +43,50 @@ router.delete("/delete_favorite/:id", async (req, res) => {
     res.status(500).json({ message: "Error deleting favorite" });
   }
 });
+
+
+// Menambahkan favorit
+router.post("/log-request", async (req, res) => {
+  const { from, to } = req.body;
+
+  try {
+    const existingRequest = await LogRequest.findOne({
+      where: { from_to_currency: `${from}/${to}` },
+    });
+
+    if (existingRequest) {
+      await LogRequest.update(
+        { request_count: existingRequest.request_count + 1 },
+        { where: { from_to_currency: `${from}/${to}` } }
+      );
+      res.json({ status: "success", message: "Request updated" });
+      return;
+    }
+
+    const favorite = await LogRequest.create({
+      from_to_currency: `${from}/${to}`,
+      request_count: 1,
+    });
+    res.json({ status: "success", favorite });
+  } catch (error) {
+    res.status(500).json({ message: "Error adding favorite" });
+  }
+});
+
+// Mendapatkan semua data favorit
+router.get("/frequent-request", async (req, res) => {
+  try {
+    // sort by highest request number, limit 5
+    const LogRequests = await LogRequest.findAll({
+      order: [["request_count", "DESC"]],
+      limit: 5,
+    });
+
+    res.json(LogRequests);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching favorites" });
+  }
+});
+
 
 module.exports = router;

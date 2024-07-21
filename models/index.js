@@ -23,6 +23,24 @@ const Favorite = sequelize.define(
   }
 );
 
+const LogRequest = sequelize.define(
+  "LogRequest",
+  {
+    from_to_currency: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    request_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+  },
+  {
+    tableName: "tbl_log_requests",
+    timestamps: false,
+  }
+);
+
 sequelize.sync();
 
-module.exports = { sequelize, Favorite };
+module.exports = { sequelize, Favorite, LogRequest };

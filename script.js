@@ -4,6 +4,7 @@ $("#convertBtn").click(function (e) {
   let amount = $("#amount").val();
 
   getChart(fromCurrency, toCurrency, amount);
+  frequentRequests();
 });
 
 $("#saveFavoriteBtn").click(function (e) {
@@ -31,9 +32,19 @@ async function getChart(from = "USD", to = "IDR", amount = 1) {
 
 async function fetchCurrencyData(fromCurrency, toCurrency, amount = 1) {
   const apiUrl = `https://api.frankfurter.app/2015-01-01..?from=${fromCurrency}&to=${toCurrency}&amount=${amount}`;
+  const logUrl = `/api/log-request`;
   try {
     const response = await fetch(apiUrl);
     const data = await response.json();
+
+    await fetch(logUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: fromCurrency, to: toCurrency }),
+    });
+
     return data;
   } catch (error) {
     console.error("Error fetching data:", error);
@@ -72,6 +83,45 @@ async function loadFavorites() {
   } catch (error) {
     console.error("Error loading favorites:", error);
   }
+}
+
+async function frequentRequests() {
+  const apiUrl = `/api/frequent-request`;
+  try {
+    const response = await fetch(apiUrl);
+    const frequentRequests = await response.json();
+    displayFrequentRequests(frequentRequests);
+  } catch (error) {
+    console.error("Error loading favorites:", error);
+  }
+}
+
+function displayFrequentRequests(frequentRequests) {
+  // create html content into mostFrequentRequests table with two column
+  const mostFrequentRequestsTable = $("#mostFrequentRequests");
+  mostFrequentRequestsTable.empty();
+  frequentRequests.forEach((request) => {
+    mostFrequentRequestsTable.append(
+      `<tr data-from-to-currency="${request.from_to_currency}" class="show-frequent">
+        <td>${request.from_to_currency}</td>
+        <td>${request.request_count}</td>
+      </tr>`
+    );
+  });
+
+  $(".show-frequent").click(function (e) {
+    let data = $(this).data("from-to-currency");
+
+    let [from, to] = data.split("/");
+
+    let inputFrom = $("#fromCurrency");
+    let inputTo = $("#toCurrency");
+
+    inputFrom.val(from);
+    inputTo.val(to);
+
+    getChart(from, to);
+  });
 }
 
 function displayFavorites(favorites) {
@@ -131,6 +181,7 @@ function displayFavorites(favorites) {
  }
 
 $(document).ready(function () {
+  frequentRequests();
   loadFavorites();
 });
 let myLineChart; // Declare this outside the function to maintain its scope across multiple calls
