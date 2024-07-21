@@ -31,9 +31,19 @@ async function getChart(from = "USD", to = "IDR", amount = 1) {
 
 async function fetchCurrencyData(fromCurrency, toCurrency, amount = 1) {
   const apiUrl = `https://api.frankfurter.app/2015-01-01..?from=${fromCurrency}&to=${toCurrency}&amount=${amount}`;
+  const logUrl = `/api/log-request`;
   try {
     const response = await fetch(apiUrl);
     const data = await response.json();
+
+    await fetch(logUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: fromCurrency, to: toCurrency }),
+    });
+
     return data;
   } catch (error) {
     console.error("Error fetching data:", error);
