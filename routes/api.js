@@ -64,7 +64,7 @@ router.post("/log-request", async (req, res) => {
     }
 
     const favorite = await LogRequest.create({
-      from_to_currency: from + to,
+      from_to_currency: `${from}/${to}`,
       request_count: 1,
     });
     res.json({ status: "success", favorite });
@@ -72,5 +72,21 @@ router.post("/log-request", async (req, res) => {
     res.status(500).json({ message: "Error adding favorite" });
   }
 });
+
+// Mendapatkan semua data favorit
+router.get("/frequent-request", async (req, res) => {
+  try {
+    // sort by highest request number, limit 5
+    const LogRequests = await LogRequest.findAll({
+      order: [["request_count", "DESC"]],
+      limit: 5,
+    });
+
+    res.json(LogRequests);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching favorites" });
+  }
+});
+
 
 module.exports = router;

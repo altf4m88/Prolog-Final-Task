@@ -4,6 +4,7 @@ $("#convertBtn").click(function (e) {
   let amount = $("#amount").val();
 
   getChart(fromCurrency, toCurrency, amount);
+  frequentRequests();
 });
 
 $("#saveFavoriteBtn").click(function (e) {
@@ -84,6 +85,45 @@ async function loadFavorites() {
   }
 }
 
+async function frequentRequests() {
+  const apiUrl = `/api/frequent-request`;
+  try {
+    const response = await fetch(apiUrl);
+    const frequentRequests = await response.json();
+    displayFrequentRequests(frequentRequests);
+  } catch (error) {
+    console.error("Error loading favorites:", error);
+  }
+}
+
+function displayFrequentRequests(frequentRequests) {
+  // create html content into mostFrequentRequests table with two column
+  const mostFrequentRequestsTable = $("#mostFrequentRequests");
+  mostFrequentRequestsTable.empty();
+  frequentRequests.forEach((request) => {
+    mostFrequentRequestsTable.append(
+      `<tr data-from-to-currency="${request.from_to_currency}" class="show-frequent">
+        <td>${request.from_to_currency}</td>
+        <td>${request.request_count}</td>
+      </tr>`
+    );
+  });
+
+  $(".show-frequent").click(function (e) {
+    let data = $(this).data("from-to-currency");
+
+    let [from, to] = data.split("/");
+
+    let inputFrom = $("#fromCurrency");
+    let inputTo = $("#toCurrency");
+
+    inputFrom.val(from);
+    inputTo.val(to);
+
+    getChart(from, to);
+  });
+}
+
 function displayFavorites(favorites) {
   const favoritesList = $("#favoritesList");
   favoritesList.empty();
@@ -141,6 +181,7 @@ function displayFavorites(favorites) {
  }
 
 $(document).ready(function () {
+  frequentRequests();
   loadFavorites();
 });
 let myLineChart; // Declare this outside the function to maintain its scope across multiple calls
