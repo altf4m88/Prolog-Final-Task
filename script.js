@@ -79,7 +79,10 @@ function displayFavorites(favorites) {
   favoritesList.empty();
   favorites.forEach((favorite) => {
     favoritesList.append(
-      `<a href="javascript:void(0)" class="list-group-item list-group-item-action show-favorite" data-id="${favorite.id}">${favorite.from_currency} to ${favorite.to_currency}</a>`
+      `<div class="d-flex">
+        <a href="javascript:void(0)" class="list-group-item list-group-item-action show-favorite" data-id="${favorite.id}">${favorite.from_currency} to ${favorite.to_currency}</a>
+        <span class="text-danger m-2 delete-favorite" style="cursor:pointer" data-id="${favorite.id}">Hapus</span>
+      </div>`
     );
   });
 
@@ -99,7 +102,33 @@ function displayFavorites(favorites) {
 
     getChart(favorite.from_currency, favorite.to_currency);
   });
-}
+
+  async function deleteFavorite(favoriteId) {
+    const apiUrl = `/api/delete_favorite/${favoriteId}`;
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'DELETE'
+      });
+  
+      if (response.ok) {
+        const result = await response.json();
+        console.log(result.message);
+        // Memperbarui tampilan favorit setelah penghapusan
+        loadFavorites();
+      } else {
+        console.error("Error deleting favorite:", await response.json());
+      }
+    } catch (error) {
+      console.error("Error deleting favorite:", error);
+    }
+  }
+
+  $(document).on("click", ".delete-favorite", async function (e) {
+    let favoriteId = $(this).data("id");
+    await deleteFavorite(favoriteId);
+  });
+
+ }
 
 $(document).ready(function () {
   loadFavorites();
