@@ -4,7 +4,6 @@ $("#convertBtn").click(function (e) {
   let amount = $("#amount").val();
 
   getChart(fromCurrency, toCurrency, amount);
-  frequentRequests();
 });
 
 $("#saveFavoriteBtn").click(function (e) {
@@ -45,6 +44,7 @@ async function fetchCurrencyData(fromCurrency, toCurrency, amount = 1) {
       body: JSON.stringify({ from: fromCurrency, to: toCurrency }),
     });
 
+    frequentRequests();
     return data;
   } catch (error) {
     console.error("Error fetching data:", error);
@@ -157,9 +157,9 @@ function displayFavorites(favorites) {
     const apiUrl = `/api/delete_favorite/${favoriteId}`;
     try {
       const response = await fetch(apiUrl, {
-        method: 'DELETE'
+        method: "DELETE",
       });
-  
+
       if (response.ok) {
         const result = await response.json();
         console.log(result.message);
@@ -177,8 +177,7 @@ function displayFavorites(favorites) {
     let favoriteId = $(this).data("id");
     await deleteFavorite(favoriteId);
   });
-
- }
+}
 
 $(document).ready(function () {
   frequentRequests();
